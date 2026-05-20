@@ -1,0 +1,6 @@
+{
+  "name": "GAMETRADE AI",
+  "description": "An premium, escrow-protected gaming marketplace with automated AI scam protection, reputation tracking, live secure chat, and automated seller verification.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

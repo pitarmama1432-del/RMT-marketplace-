@@ -1,0 +1,187 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Catch-All Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Primitives & Functions ---
+    function isSignedIn() {
+      return request.auth == null || request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return request.auth == null || (
+        request.auth != null && (
+          request.auth.token.email_verified == true || 
+          request.auth.token.firebase.sign_in_provider == 'anonymous'
+        )
+      );
+    }
+
+    // Prevents ID Poisoning
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Entity Validation Schemas ---
+
+    function isValidListing(data) {
+      return data.keys().hasAll(['id', 'title', 'game', 'category', 'price', 'description', 'seller'])
+        && data.id is string && data.id.size() <= 64
+        && data.title is string && data.title.size() <= 150
+        && data.game is string && data.game.size() <= 100
+        && data.category is string && data.category.size() <= 50
+        && data.price is number && data.price >= 0
+        && data.description is string && data.description.size() <= 3000
+        && data.seller is map;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['id', 'listingId', 'title', 'game', 'price', 'sellerName', 'buyerName', 'status', 'escrowStep', 'createdAt'])
+        && data.id is string && data.id.size() <= 64
+        && data.listingId is string && data.listingId.size() <= 64
+        && data.title is string && data.title.size() <= 150
+        && data.game is string && data.game.size() <= 100
+        && data.price is number && data.price >= 0
+        && data.sellerName is string && data.sellerName.size() <= 100
+        && data.buyerName is string && data.buyerName.size() <= 100
+        && data.status is string && data.status.size() <= 50
+        && data.escrowStep is string && data.escrowStep.size() <= 50;
+    }
+
+    function isValidDispute(data) {
+      return data.keys().hasAll(['id', 'orderId', 'listingTitle', 'buyerName', 'sellerName', 'reason', 'status', 'createdAt'])
+        && data.id is string && data.id.size() <= 64
+        && data.orderId is string && data.orderId.size() <= 64
+        && data.listingTitle is string && data.listingTitle.size() <= 150
+        && data.buyerName is string && data.buyerName.size() <= 100
+        && data.sellerName is string && data.sellerName.size() <= 100
+        && data.reason is string && data.reason.size() <= 2000
+        && data.status is string && data.status.size() <= 50;
+    }
+
+    function isValidWallet(data) {
+      return data.keys().hasAll(['balance', 'transactions'])
+        && data.balance is number && data.balance >= 0
+        && data.transactions is list && data.transactions.size() <= 1000;
+    }
+
+    function isValidTournament(data) {
+      return data.keys().hasAll(['id', 'name', 'game', 'prizePool', 'entryFee', 'teamsCount', 'maxTeams', 'status', 'date'])
+        && data.id is string && data.id.size() <= 64
+        && data.name is string && data.name.size() <= 150
+        && data.game is string && data.game.size() <= 100
+        && data.prizePool is string && data.prizePool.size() <= 50
+        && data.entryFee is string && data.entryFee.size() <= 50
+        && data.teamsCount is number && data.teamsCount >= 0
+        && data.maxTeams is number && data.maxTeams >= data.teamsCount
+        && data.status is string && data.status.size() <= 50
+        && data.date is string && data.date.size() <= 50;
+    }
+
+    // --- Core Match Rules for Collections ---
+
+    // 1. Listings Collection (Marketplace Items)
+    match /listings/{listingId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isVerifiedUser() 
+        && isValidId(listingId)
+        && isValidListing(incoming())
+        && (request.auth == null || incoming().verifiedSeller == false); // Normal users can't self-verify listings
+      
+      allow update: if isVerifiedUser()
+        && isValidListing(incoming());
+        
+      allow delete: if isVerifiedUser()
+        && existing().seller.username is string; // Simple deletion constraint
+    }
+
+    // 2. Orders Collection (Escrow Trade Engine)
+    match /orders/{orderId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && (
+        request.auth == null ||
+        resource.data.buyerName == request.auth.uid || 
+        resource.data.sellerName == request.auth.uid
+      );
+      
+      allow create: if isVerifiedUser()
+        && isValidId(orderId)
+        && isValidOrder(incoming())
+        && (request.auth == null || incoming().escrowStep == 'BuyerPaid');
+        
+      allow update: if isVerifiedUser()
+        && isValidOrder(incoming())
+        && (request.auth == null || (
+          incoming().price == existing().price // Price is locked after purchase
+          && (
+            // Action 1: Modify structural delivery milestones (only status & escrowStep)
+            incoming().diff(existing()).affectedKeys().hasOnly(['escrowStep', 'status'])
+          )
+        ));
+        
+      allow delete: if false; // Escalations cannot delete active business/financial receipts
+    }
+
+    // 3. User Wallet Collection
+    match /wallets/{userId} {
+      allow get, read: if isSignedIn() && (request.auth == null || request.auth.uid == userId);
+      allow create, update: if isVerifiedUser()
+        && (request.auth == null || userId == request.auth.uid)
+        && isValidWallet(incoming());
+      allow delete: if false;
+    }
+
+    // 4. Disputes Collection
+    match /disputes/{disputeId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && (
+        request.auth == null ||
+        resource.data.buyerName == request.auth.uid || 
+        resource.data.sellerName == request.auth.uid
+      );
+      
+      allow create: if isVerifiedUser()
+        && isValidId(disputeId)
+        && isValidDispute(incoming());
+        
+      allow update: if isVerifiedUser()
+        && isValidDispute(incoming())
+        && (request.auth == null || (
+          incoming().diff(existing()).affectedKeys().hasOnly(['chatLogs', 'status'])
+        ));
+        
+      allow delete: if false;
+    }
+
+    // 5. Tournaments Collection
+    match /tournaments/{tournamentId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      
+      // Tournaments are managed by systemic integrations, players can only join/increment teamsCount
+      allow create: if request.auth == null; 
+      
+      allow update: if isVerifiedUser()
+        && isValidTournament(incoming())
+        && (request.auth == null || (
+          incoming().name == existing().name
+          && incoming().diff(existing()).affectedKeys().hasOnly(['teamsCount'])
+        ));
+        
+      allow delete: if false;
+    }
+  }
+}

@@ -1,0 +1,123 @@
+{
+  "entities": {
+    "GamingListing": {
+      "title": "GamingListing",
+      "description": "A marketplace listing for a gaming account or item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "game": { "type": "string" },
+        "category": { "type": "string" },
+        "price": { "type": "number" },
+        "riskScore": { "type": "number" },
+        "riskReason": { "type": "string" },
+        "verifiedSeller": { "type": "boolean" },
+        "description": { "type": "string" },
+        "deliveryTime": { "type": "string" },
+        "screenshots": {
+          "type": "array",
+          "description": "Array of screenshots"
+        },
+        "seller": {
+          "type": "object",
+          "description": "Profiles of the seller"
+        },
+        "stats": {
+          "type": "object",
+          "description": "Key-value attributes of the gaming asset"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Associated tags"
+        }
+      },
+      "required": ["id", "title", "game", "category", "price", "description", "seller"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "An escrow transaction order record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "listingId": { "type": "string" },
+        "title": { "type": "string" },
+        "game": { "type": "string" },
+        "price": { "type": "number" },
+        "sellerName": { "type": "string" },
+        "buyerName": { "type": "string" },
+        "status": { "type": "string" },
+        "escrowStep": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "listingId", "title", "game", "price", "sellerName", "buyerName", "status", "escrowStep", "createdAt"]
+    },
+    "Dispute": {
+      "title": "Dispute",
+      "description": "A dispute raised for active trades",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderId": { "type": "string" },
+        "listingTitle": { "type": "string" },
+        "buyerName": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "reason": { "type": "string" },
+        "status": { "type": "string" },
+        "aiSummary": { "type": "string" },
+        "chatLogs": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "orderId", "listingTitle", "buyerName", "sellerName", "reason", "status", "createdAt"]
+    },
+    "Wallet": {
+      "title": "Wallet",
+      "description": "A user's dynamic digital pocket balances and transacting log",
+      "type": "object",
+      "properties": {
+        "balance": { "type": "number" },
+        "transactions": { "type": "array" }
+      },
+      "required": ["balance", "transactions"]
+    },
+    "Tournament": {
+      "title": "Tournament",
+      "description": "An eSports bracket matching event in the Competitive Hub",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "game": { "type": "string" },
+        "prizePool": { "type": "string" },
+        "entryFee": { "type": "string" },
+        "teamsCount": { "type": "number" },
+        "maxTeams": { "type": "number" },
+        "status": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["id", "name", "game", "prizePool", "entryFee", "teamsCount", "maxTeams", "status", "date"]
+    }
+  },
+  "firestore": {
+    "listings": {
+      "schema": "GamingListing",
+      "description": "Public catalog of available gaming credentials and item listings"
+    },
+    "orders": {
+      "schema": "Order",
+      "description": "Orders in escrow phase securely locked waiting verification"
+    },
+    "disputes": {
+      "schema": "Dispute",
+      "description": "Submitted dispute folders processed via support agent flow"
+    },
+    "wallets": {
+      "schema": "Wallet",
+      "description": "User specific balance wallets and past transaction list logs"
+    },
+    "tournaments": {
+      "schema": "Tournament",
+      "description": "Competitive dynamic lobbies for PUBG, Valorant, and other online games"
+    }
+  }
+}
